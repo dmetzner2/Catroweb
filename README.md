@@ -1,5 +1,5 @@
 # Catroweb
-
+B
 ![Tests](https://github.com/Catrobat/Catroweb-Symfony/workflows/Tests/badge.svg)
 ![Code Quality Checks](https://github.com/Catrobat/Catroweb-Symfony/workflows/Code%20Quality%20Checks/badge.svg)
 [![Dependabot Status](https://api.dependabot.com/badges/status?host=github&repo=Catrobat/Catroweb)](https://dependabot.com)
