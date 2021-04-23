@@ -11,14 +11,19 @@ use Elastica\Query\QueryString;
 use Elastica\Util;
 use FOS\ElasticaBundle\Finder\TransformedFinder;
 use FOS\UserBundle\Model\UserInterface;
+use FOS\UserBundle\Model\UserManagerInterface;
 use FOS\UserBundle\Util\CanonicalFieldsUpdater;
 use FOS\UserBundle\Util\PasswordUpdaterInterface;
+use Sonata\DatagridBundle\Pager\Doctrine\Pager;
+use Sonata\DatagridBundle\ProxyQuery\Doctrine\ProxyQuery;
 use Symfony\Component\HttpFoundation\UrlHelper;
 use Symfony\Component\Intl\Countries;
 use Symfony\Component\Intl\Exception\MissingResourceException;
 use Symfony\Component\Security\Core\Encoder\PasswordEncoderInterface;
+use FOS\UserBundle\Doctrine\UserManager as BaseUserManager;
+use Sonata\Doctrine\Model\ManagerInterface;
 
-class UserManager extends \Sonata\UserBundle\Entity\UserManager
+class UserManager extends BaseUserManager implements UserManagerInterface, ManagerInterface
 {
   private ProgramManager $program_manager;
 
@@ -144,4 +149,102 @@ class UserManager extends \Sonata\UserBundle\Entity\UserManager
 
     return $bool_query;
   }
+
+
+  //-------------- Sonata
+
+  public function findUsersBy(?array $criteria = null, ?array $orderBy = null, $limit = null, $offset = null)
+  {
+    return $this->getRepository()->findBy($criteria, $orderBy, $limit, $offset);
+  }
+
+  public function find($id)
+  {
+    return $this->getRepository()->find($id);
+  }
+
+  public function findAll()
+  {
+    return $this->getRepository()->findAll();
+  }
+
+  public function findBy(array $criteria, ?array $orderBy = null, $limit = null, $offset = null)
+  {
+    return $this->getRepository()->findBy($criteria, $orderBy, $limit, $offset);
+  }
+
+  public function findOneBy(array $criteria, ?array $orderBy = null)
+  {
+    return parent::findUserBy($criteria);
+  }
+
+  public function create()
+  {
+    return parent::createUser();
+  }
+
+  public function save($entity, $andFlush = true): void
+  {
+    parent::updateUser($entity, $andFlush);
+  }
+
+  public function delete($entity, $andFlush = true): void
+  {
+    if (!$entity instanceof UserInterface) {
+      throw new \InvalidArgumentException('Save method expected entity of type UserInterface');
+    }
+
+    parent::deleteUser($entity);
+  }
+
+  public function getTableName()
+  {
+    return $this->objectManager->getClassMetadata($this->getClass())->table['name'];
+  }
+
+  public function getConnection()
+  {
+    return $this->objectManager->getConnection();
+  }
+
+  /**
+   * @param array $criteria
+   * @param int $page
+   * @param int $limit
+   * @param array $sort
+   * @return Pager
+   */
+  public function getPager(array $criteria, $page, $limit = 10, array $sort = [])
+  {
+    $query = $this->getRepository()
+      ->createQueryBuilder('u')
+      ->select('u');
+
+    $fields = $this->objectManager->getClassMetadata($this->getClass())->getFieldNames();
+    foreach ($sort as $field => $direction) {
+      if (!\in_array($field, $fields, true)) {
+        throw new \RuntimeException(sprintf("Invalid sort field '%s' in '%s' class", $field, $this->getClass()));
+      }
+    }
+    if (0 === \count($sort)) {
+      $sort = ['username' => 'ASC'];
+    }
+    foreach ($sort as $field => $direction) {
+      $query->orderBy(sprintf('u.%s', $field), strtoupper($direction));
+    }
+
+    if (isset($criteria['enabled'])) {
+      $query->andWhere('u.enabled = :enabled');
+      $query->setParameter('enabled', $criteria['enabled']);
+    }
+
+    $pager = new Pager();
+    $pager->setMaxPerPage($limit);
+    $pager->setQuery(new ProxyQuery($query));
+    $pager->setPage($page);
+    $pager->init();
+
+    return $pager;
+  }
+
 }

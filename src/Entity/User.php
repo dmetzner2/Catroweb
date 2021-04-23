@@ -2,18 +2,578 @@
 
 namespace App\Entity;
 
+use DateTime;
 use Doctrine\Common\Collections\ArrayCollection;
 use Doctrine\Common\Collections\Collection;
 use Doctrine\Common\Collections\Criteria;
 use Doctrine\ORM\Mapping as ORM;
-use Sonata\UserBundle\Entity\BaseUser as BaseUser;
+
+use FOS\UserBundle\Model\GroupInterface;
+use FOS\UserBundle\Model\UserInterface;
+
+//use Symfony\Component\Security\Core\User\UserInterface;
 
 /**
  * @ORM\Entity
  * @ORM\Table(name="fos_user")
  */
-class User extends BaseUser
+class User implements UserInterface
 {
+//  const ROLE_DEFAULT = 'ROLE_USER';
+//
+//  const ROLE_SUPER_ADMIN = 'ROLE_SUPER_ADMIN';
+
+  //-----------------------------------------
+  //-----------------------------------------
+  //
+  // SONATA BASE USER
+  //
+  //-----------------------------------------
+  //-----------------------------------------
+
+  /**
+   * Hook on pre-persist operations.
+   */
+  public function prePersist(): void
+  {
+    $this->created_at = new DateTime();
+    $this->updated_at = new DateTime();
+  }
+
+  /**
+   * Hook on pre-update operations.
+   */
+  public function preUpdate(): void
+  {
+    $this->updated_at = new DateTime();
+  }
+
+  //-----------------------------------------
+  //-----------------------------------------
+  //
+  // SONATA BASE USER
+  //
+  //-----------------------------------------
+  //-----------------------------------------
+
+  /**
+   * @ORM\Column(type="datetime", nullable=true)
+   */
+  protected $created_at;
+
+  /**
+   * @ORM\Column(type="datetime", nullable=true)
+   */
+  protected $updated_at;
+
+  /**
+   * @var string
+   */
+  protected $gplusUid;
+
+  /**
+   * @var string
+   */
+  protected $gplusName;
+
+  /**
+   * @var string
+   */
+  protected $token;
+  
+  /**
+   * Returns a string representation.
+   *
+   * @return string
+   */
+  public function __toString()
+  {
+    return $this->getUsername() ?: '-';
+  }
+
+  public function setCreatedAt(?DateTime $created_at = null)
+  {
+    $this->created_at = $created_at;
+
+    return $this;
+  }
+
+  public function getCreatedAt()
+  {
+    return $this->created_at;
+  }
+
+  public function setUpdatedAt(?DateTime $updated_at = null)
+  {
+    $this->updated_at = $updated_at;
+
+    return $this;
+  }
+
+  public function getUpdatedAt()
+  {
+    return $this->updated_at;
+  }
+
+  public function setGroups($groups)
+  {
+    foreach ($groups as $group) {
+      $this->addGroup($group);
+    }
+
+    return $this;
+  }
+
+  public function getGplusName()
+  {
+    return $this->gplusName;
+  }
+
+  public function setGplusUid($gplusUid)
+  {
+    $this->gplusUid = $gplusUid;
+
+    return $this;
+  }
+
+  public function getGplusUid()
+  {
+    return $this->gplusUid;
+  }
+
+  public function setToken($token)
+  {
+    $this->token = $token;
+
+    return $this;
+  }
+
+  public function getToken()
+  {
+    return $this->token;
+  }
+
+  public function getRealRoles()
+  {
+    return $this->roles;
+  }
+
+  public function setRealRoles(array $roles)
+  {
+    $this->setRoles($roles);
+
+    return $this;
+  }
+
+  //-----------------------------------------
+  //-----------------------------------------
+  //
+  // FOS USER
+  //
+  //-----------------------------------------
+  //-----------------------------------------
+
+  /**
+   * @ORM\Column(type="string", length=180, nullable=false, unique=true)
+   */
+  protected $username;
+
+  /**
+   * @ORM\Column(type="string", length=180, nullable=false, name="username_canonical")
+   */
+  protected $usernameCanonical;
+
+  /**
+   * @ORM\Column(type="string", length=180, nullable=false, unique=true)
+   */
+  protected $email;
+
+  /**
+   * @ORM\Column(type="string", length=180, nullable=false, name="email_canonical")
+   */
+  protected $emailCanonical;
+
+  /**
+   * @ORM\Column(type="boolean", nullable=false)
+   */
+  protected $enabled;
+
+  /**
+   * @ORM\Column(type="string", length=255, nullable=true)
+   */
+  protected $salt;
+
+  /**
+   * @ORM\Column(type="string", length=255, nullable=false)
+   */
+  protected $password;
+
+  /**
+   * Plain password. Used for model validation. Must not be persisted.
+   *
+   * @var string
+   */
+  protected $plain_password;
+
+  /**
+   * @ORM\Column(type="datetime", nullable=true)
+   */
+  protected $last_login;
+
+  /**
+   * @ORM\Column(type="string", length=180, nullable=true)
+   *
+   * Random string sent to the user email address in order to verify it.
+   * @var string|null
+   */
+  protected $confirmation_token;
+
+  /**
+   * @ORM\Column(type="datetime", nullable=true)
+   */
+  protected $password_requested_at;
+
+  /**
+   * @var GroupInterface[]|Collection
+   */
+  protected $groups;
+
+  /**
+   * @ORM\Column(type="array", nullable=false)
+   */
+  protected $roles;
+
+
+  public function addRole($role)
+  {
+    $role = strtoupper($role);
+    if ($role === static::ROLE_DEFAULT) {
+      return $this;
+    }
+
+    if (!in_array($role, $this->roles, true)) {
+      $this->roles[] = $role;
+    }
+
+    return $this;
+  }
+
+  public function serialize()
+  {
+    return serialize(array(
+      $this->password,
+      $this->salt,
+      $this->usernameCanonical,
+      $this->username,
+      $this->enabled,
+      $this->id,
+      $this->email,
+      $this->emailCanonical,
+    ));
+  }
+
+  public function unserialize($serialized)
+  {
+    $data = unserialize($serialized);
+
+    if (13 === count($data)) {
+      // Unserializing a User object from 1.3.x
+      unset($data[4], $data[5], $data[6], $data[9], $data[10]);
+      $data = array_values($data);
+    } elseif (11 === count($data)) {
+      // Unserializing a User from a dev version somewhere between 2.0-alpha3 and 2.0-beta1
+      unset($data[4], $data[7], $data[8]);
+      $data = array_values($data);
+    }
+
+    list(
+      $this->password,
+      $this->salt,
+      $this->usernameCanonical,
+      $this->username,
+      $this->enabled,
+      $this->id,
+      $this->email,
+      $this->emailCanonical
+      ) = $data;
+  }
+
+  public function eraseCredentials()
+  {
+    $this->plain_password = null;
+  }
+
+  public function getUsername()
+  {
+    return $this->username;
+  }
+
+  public function getUsernameCanonical()
+  {
+    return $this->usernameCanonical;
+  }
+
+  public function getSalt()
+  {
+    return $this->salt;
+  }
+
+  public function getEmail()
+  {
+    return $this->email;
+  }
+
+  public function getEmailCanonical()
+  {
+    return $this->emailCanonical;
+  }
+
+  public function getPassword()
+  {
+    return $this->password;
+  }
+
+  public function getPlainPassword()
+  {
+    return $this->plain_password;
+  }
+
+  /**
+   * Gets the last login time.
+   *
+   * @return DateTime|null
+   */
+  public function getLastLogin()
+  {
+    return $this->last_login;
+  }
+
+  public function getConfirmationToken()
+  {
+    return $this->confirmation_token;
+  }
+
+  public function getRoles()
+  {
+    $roles = $this->roles;
+
+    foreach ($this->getGroups() as $group) {
+      $roles = array_merge($roles, $group->getRoles());
+    }
+
+    // we need to make sure to have at least one role
+    $roles[] = static::ROLE_DEFAULT;
+
+    return array_unique($roles);
+  }
+
+  public function hasRole($role)
+  {
+    return in_array(strtoupper($role), $this->getRoles(), true);
+  }
+
+  public function isAccountNonExpired()
+  {
+    return true;
+  }
+
+  public function isAccountNonLocked()
+  {
+    return true;
+  }
+
+  public function isCredentialsNonExpired()
+  {
+    return true;
+  }
+
+  public function isEnabled()
+  {
+    return $this->enabled;
+  }
+
+  public function isSuperAdmin()
+  {
+    return $this->hasRole(static::ROLE_SUPER_ADMIN);
+  }
+
+  public function removeRole($role)
+  {
+    if (false !== $key = array_search(strtoupper($role), $this->roles, true)) {
+      unset($this->roles[$key]);
+      $this->roles = array_values($this->roles);
+    }
+
+    return $this;
+  }
+
+  public function setUsername($username)
+  {
+    $this->username = $username;
+
+    return $this;
+  }
+
+  public function setUsernameCanonical($usernameCanonical)
+  {
+    $this->usernameCanonical = $usernameCanonical;
+
+    return $this;
+  }
+
+  public function setSalt($salt)
+  {
+    $this->salt = $salt;
+
+    return $this;
+  }
+
+  public function setEmail($email)
+  {
+    $this->email = $email;
+
+    return $this;
+  }
+
+  public function setEmailCanonical($emailCanonical)
+  {
+    $this->emailCanonical = $emailCanonical;
+
+    return $this;
+  }
+
+  public function setEnabled($boolean)
+  {
+    $this->enabled = (bool) $boolean;
+
+    return $this;
+  }
+
+  public function setPassword($password)
+  {
+    $this->password = $password;
+
+    return $this;
+  }
+
+  public function setSuperAdmin($boolean)
+  {
+    if (true === $boolean) {
+      $this->addRole(static::ROLE_SUPER_ADMIN);
+    } else {
+      $this->removeRole(static::ROLE_SUPER_ADMIN);
+    }
+
+    return $this;
+  }
+
+  public function setPlainPassword($password)
+  {
+    $this->plain_password = $password;
+
+    return $this;
+  }
+
+  public function setLastLogin(DateTime $time = null)
+  {
+    $this->last_login = $time;
+
+    return $this;
+  }
+
+  public function setConfirmationToken($confirmation_token)
+  {
+    $this->confirmation_token = $confirmation_token;
+
+    return $this;
+  }
+
+  public function setPasswordRequestedat(DateTime $date = null)
+  {
+    $this->password_requested_at = $date;
+
+    return $this;
+  }
+
+  /**
+   * Gets the timestamp that the user requested a password reset.
+   *
+   * @return null|DateTime
+   */
+  public function getPasswordRequestedat()
+  {
+    return $this->password_requested_at;
+  }
+
+  public function isPasswordRequestNonExpired($ttl)
+  {
+    return $this->getPasswordRequestedat() instanceof DateTime &&
+      $this->getPasswordRequestedat()->getTimestamp() + $ttl > time();
+  }
+
+  public function setRoles(array $roles)
+  {
+    $this->roles = array();
+
+    foreach ($roles as $role) {
+      $this->addRole($role);
+    }
+
+    return $this;
+  }
+
+  public function getGroups()
+  {
+    return $this->groups ?: $this->groups = new ArrayCollection();
+  }
+
+  public function getGroupNames()
+  {
+    $names = array();
+    foreach ($this->getGroups() as $group) {
+      $names[] = $group->getName();
+    }
+
+    return $names;
+  }
+
+  public function hasGroup($name)
+  {
+    return in_array($name, $this->getGroupNames());
+  }
+
+  public function addGroup(GroupInterface $group)
+  {
+    if (!$this->getGroups()->contains($group)) {
+      $this->getGroups()->add($group);
+    }
+
+    return $this;
+  }
+
+  public function removeGroup(GroupInterface $group)
+  {
+    if ($this->getGroups()->contains($group)) {
+      $this->getGroups()->removeElement($group);
+    }
+
+    return $this;
+  }
+
+  //-----------------------------------------
+  //-----------------------------------------
+  //
+  // Custom USER
+  //
+  //-----------------------------------------
+  //-----------------------------------------
+
+
+//  const ROLE_DEFAULT = 'ROLE_USER';
+//
+//  const ROLE_SUPER_ADMIN = 'ROLE_SUPER_ADMIN';
+
+  
   public static string $SCRATCH_PREFIX = 'Scratch:';
   /**
    * @ORM\Id
@@ -239,7 +799,8 @@ class User extends BaseUser
 
   public function __construct()
   {
-    parent::__construct();
+    $this->enabled = false;
+    $this->roles = array();
     $this->programs = new ArrayCollection();
     $this->notifications = new ArrayCollection();
     $this->comments = new ArrayCollection();
@@ -478,9 +1039,9 @@ class User extends BaseUser
     return $this->google_access_token;
   }
 
-  public function changeCreatedAt(\DateTime $createdAt): void
+  public function changeCreatedAt(DateTime $createdAt): void
   {
-    $this->createdAt = $createdAt;
+    $this->created_at = $createdAt;
   }
 
   public function getScratchUserId(): ?int
@@ -562,4 +1123,5 @@ class User extends BaseUser
   {
     $this->apple_access_token = $apple_access_token;
   }
+  
 }

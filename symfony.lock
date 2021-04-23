@@ -653,7 +653,7 @@
         "version": "2.1.0"
     },
     "sonata-project/user-bundle": {
-        "version": "4.5.0"
+        "version": "4.5.3"
     },
     "swiftmailer/swiftmailer": {
         "version": "v6.2.3"
